@@ -15,9 +15,14 @@ def upload_to_sheet(json_creds, file_path, url, sheet_name, start_cell):
     sheet = client.open_by_url(url)
     worksheet = sheet.worksheet(sheet_name)
     data = pd.read_csv(file_path)
+    data = data.fillna('') # JSON can't handle nan values, so we need to filter them out here
     cell_list = worksheet.range(start_cell + ':' + gspread.utils.rowcol_to_a1(data.shape[0] + worksheet.range(start_cell)[0].row - 1,
                                                                             data.shape[1] + worksheet.range(start_cell)[0].col - 1))
-    flat_list = data.values.flatten()
+
+    # Pandas doesn't consider the header to be part of the data, but we also want to write it back
+    # so we manually add them both together
+    flat_list = data.columns.tolist() + data.values.ravel().tolist()
+
     for cell, value in zip(cell_list, flat_list):
         cell.value = value
     worksheet.update_cells(cell_list)
@@ -29,7 +34,7 @@ def download_from_sheet(json_creds, url, sheet_name, start_cell, output_file):
     data = worksheet.get(start_cell + ':' + gspread.utils.rowcol_to_a1(worksheet.row_count,
                                                                       worksheet.col_count))
     df = pd.DataFrame(data)
-    df.to_csv(output_file, index=False)
+    df.to_csv(output_file, index=False, header=False)
 
 def main():
     parser = argparse.ArgumentParser(description='Upload or download a CSV to/from Google Sheets.')
@@ -45,6 +50,7 @@ def main():
         upload_to_sheet(args.json_creds, args.file_path, args.url, args.sheet_name, args.start_cell)
     elif args.action == 'download':
         download_from_sheet(args.json_creds, args.url, args.sheet_name, args.start_cell, args.file_path)
+
 
 if __name__ == "__main__":
     main()
