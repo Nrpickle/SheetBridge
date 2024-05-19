@@ -4,20 +4,29 @@ import pandas as pd
 import argparse
 import sys
 
+
 def authenticate_gspread(json_creds):
     scope = ['https://www.googleapis.com/auth/spreadsheets']
     creds = ServiceAccountCredentials.from_json_keyfile_name(json_creds, scope)
     client = gspread.authorize(creds)
     return client
 
+
 def upload_to_sheet(json_creds, file_path, url, sheet_name, start_cell):
     client = authenticate_gspread(json_creds)
     sheet = client.open_by_url(url)
-    worksheet = sheet.worksheet(sheet_name)
+
+    try:
+        worksheet = sheet.worksheet(sheet_name)
+    except gspread.exceptions.WorksheetNotFound:
+        print(f"Worksheet '{sheet_name}' not found. Creating a new worksheet.")
+        worksheet = sheet.add_worksheet(title=sheet_name, rows="1000", cols="26")
+
     data = pd.read_csv(file_path)
-    data = data.fillna('') # JSON can't handle nan values, so we need to filter them out here
-    cell_list = worksheet.range(start_cell + ':' + gspread.utils.rowcol_to_a1(data.shape[0] + worksheet.range(start_cell)[0].row - 1,
-                                                                            data.shape[1] + worksheet.range(start_cell)[0].col - 1))
+    data = data.fillna('')  # JSON can't handle nan values, so we need to filter them out here
+    cell_list = worksheet.range(
+        start_cell + ':' + gspread.utils.rowcol_to_a1(data.shape[0] + worksheet.range(start_cell)[0].row - 1,
+                                                      data.shape[1] + worksheet.range(start_cell)[0].col - 1))
 
     # Pandas doesn't consider the header to be part of the data, but we also want to write it back
     # so we manually add them both together
@@ -27,14 +36,16 @@ def upload_to_sheet(json_creds, file_path, url, sheet_name, start_cell):
         cell.value = value
     worksheet.update_cells(cell_list)
 
+
 def download_from_sheet(json_creds, url, sheet_name, start_cell, output_file):
     client = authenticate_gspread(json_creds)
     sheet = client.open_by_url(url)
     worksheet = sheet.worksheet(sheet_name)
     data = worksheet.get(start_cell + ':' + gspread.utils.rowcol_to_a1(worksheet.row_count,
-                                                                      worksheet.col_count))
+                                                                       worksheet.col_count))
     df = pd.DataFrame(data)
     df.to_csv(output_file, index=False, header=False)
+
 
 def main():
     parser = argparse.ArgumentParser(description='Upload or download a CSV to/from Google Sheets.')
