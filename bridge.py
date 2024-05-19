@@ -12,12 +12,15 @@ def authenticate_gspread(json_creds):
     return client
 
 
-def upload_to_sheet(json_creds, file_path, url, sheet_name, start_cell):
+def upload_to_sheet(json_creds, file_path, url, sheet_name, start_cell, erase):
     client = authenticate_gspread(json_creds)
     sheet = client.open_by_url(url)
 
     try:
         worksheet = sheet.worksheet(sheet_name)
+        if erase:
+            worksheet.clear()
+            print(f"Worksheet '{sheet_name}' cleared.")
     except gspread.exceptions.WorksheetNotFound:
         print(f"Worksheet '{sheet_name}' not found. Creating a new worksheet.")
         worksheet = sheet.add_worksheet(title=sheet_name, rows="1000", cols="26")
@@ -55,10 +58,11 @@ def main():
     parser.add_argument('url', help='URL of the Google Sheet')
     parser.add_argument('sheet_name', help='Name of the worksheet in the Google Sheet')
     parser.add_argument('start_cell', help='Start cell for upload or download')
+    parser.add_argument('--erase', action='store_true', help='Erase the worksheet before uploading')
     args = parser.parse_args()
 
     if args.action == 'upload':
-        upload_to_sheet(args.json_creds, args.file_path, args.url, args.sheet_name, args.start_cell)
+        upload_to_sheet(args.json_creds, args.file_path, args.url, args.sheet_name, args.start_cell, args.erase)
     elif args.action == 'download':
         download_from_sheet(args.json_creds, args.url, args.sheet_name, args.start_cell, args.file_path)
 
